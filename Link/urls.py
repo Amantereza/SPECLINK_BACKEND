@@ -24,12 +24,15 @@ urlpatterns = [
     path('doctor_appointments/<int:doctor_id>', DoctorAppointments),
     path('change_appointment_status/<int:pk>', ChangeAppointmentStatus.as_view()),
     path('delete_appointments/<int:pk>', RemoveAppointments.as_view()),
+    path('patient_appointments/<int:patient_id>',  PatientAppointments),
+    path('edit_appointements/<int:pk>', EditAppointments.as_view()),
 
     #medical records view
     path('list_medical_records', ListMedicalRecords.as_view()),
     path('post_medical_records', PostMedicalRecords.as_view()),
     path('patient_records/<int:patient_id>', PatientRecordView),
     path('remove_records/<int:pk>', RemoveRecords.as_view()),
+    path('edit_record/<int:pk>', EditRecords.as_view()),
 
     #Prescriptions views
     path('patient_prescriptions/<int:patient_id>', PatientPrescriptions),

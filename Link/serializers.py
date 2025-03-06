@@ -77,7 +77,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
 class AppointmentSerializer(serializers.ModelSerializer):
      class Meta:
           model = Appointment
-        #   fields = ["id", "doctor", "status", "time", "date","reason", "created_at", "updated_at","user"]
           fields = '__all__'
 
      def to_representation(self, instance):
@@ -85,6 +84,18 @@ class AppointmentSerializer(serializers.ModelSerializer):
         response['user'] = UserSerializer(instance.user).data
         return response
 
+
+#patient appointments
+class PatientAppointmentSerializer(serializers.ModelSerializer):
+     class Meta:
+          model = Appointment
+          fields = '__all__'
+
+     def to_representation(self, instance):
+        response = super().to_representation(instance)
+        response['doctor'] = UserSerializer(instance.doctor).data
+        return response
+     
 #doctor appointments
 class DoctorAppointmentSerializer(serializers.ModelSerializer):
      appointments = AppointmentSerializer(read_only=True, many=True)
@@ -92,11 +103,19 @@ class DoctorAppointmentSerializer(serializers.ModelSerializer):
           model = User
           fields = ["id", "email", "appointments"]
 
+
 #medical records serializer
 class MedicalRecordSerializer(serializers.ModelSerializer):
      class Meta:
           model = MedicalRecord
           fields = "__all__"
+
+    
+     def to_representation(self, instance):
+        response = super().to_representation(instance)
+        response['user'] = UserSerializer(instance.user).data
+        return response
+
 
 #patient medical records
 class PatientMedicalRecordSerializer(serializers.ModelSerializer):

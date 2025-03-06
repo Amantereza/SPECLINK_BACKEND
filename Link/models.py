@@ -68,6 +68,8 @@ class MedicalRecord(models.Model):
     diagnosis = models.TextField()
     treatment = models.TextField()
     date = models.DateField(auto_now_add=True)
+    medication = models.TextField()
+    dosage = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

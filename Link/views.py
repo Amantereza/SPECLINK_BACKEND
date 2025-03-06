@@ -131,6 +131,18 @@ class PostAppointments(generics.CreateAPIView):
      queryset = Appointment.objects.all()
      serializer_class = AppointmentSerializer
 
+#edit appointments
+class EditAppointments(generics.UpdateAPIView):
+     queryset = Appointment.objects.all()
+     serializer_class = AppointmentSerializer
+
+     def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.serializer_class(instance, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
 #list doctor appointments
 @api_view(['GET'])
 def DoctorAppointments(request, doctor_id):
@@ -140,6 +152,16 @@ def DoctorAppointments(request, doctor_id):
           return Response(status=status.HTTP_404_NOT_FOUND)
      if request.method == 'GET':
           serializer = DoctorAppointmentSerializer(user)
+          return Response(serializer.data, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def PatientAppointments(request, patient_id):
+     try:
+          appointment = Appointment.objects.filter(user=patient_id)
+     except Appointment.DoesNotExist:
+          return Response(status=status.HTTP_404_NOT_FOUND)
+     if request.method == 'GET':
+          serializer = PatientAppointmentSerializer(appointment, many=True)
           return Response(serializer.data, status=status.HTTP_200_OK)
      
 #change appointment status
@@ -203,6 +225,18 @@ class RemoveRecords(generics.RetrieveDestroyAPIView):
           instance = self.get_object()
           instance.delete()
           return Response({"msg": "Medical Record Deleted successfully"})
+     
+#edit records
+class EditRecords(generics.UpdateAPIView):
+     queryset = MedicalRecord.objects.all()
+     serializer_class = MedicalRecordSerializer
+
+     def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.serializer_class(instance, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
      
 # prescriptions
 class PostPrescriptions(generics.CreateAPIView):
