@@ -21,6 +21,11 @@ class RegisterView(generics.CreateAPIView):
      serializer_class = RegisterSerializer
 
 # user views
+
+#list all users
+class AllUsers(generics.ListAPIView):
+     queryset = User.objects.all()
+     serializer_class = UserSerializer
 #Update user 
 class UpdateUser(generics.UpdateAPIView):
     queryset = User.objects.select_related('profile')
@@ -44,6 +49,26 @@ class DeleteUser(generics.RetrieveDestroyAPIView):
           instance.delete()
           return Response({"msg": "user Deleted successfully"})
 
+#deactivate user 
+class DeactivateUser(APIView):
+     queryset = User.objects.all()
+     serializer_class = UserSerializer
+     
+     def patch(self, request, *args, **kwargs):
+          user_id = kwargs.get('pk')
+          status = request.data.get('is_active')
+
+          try:
+               with transaction.atomic():
+                    user = User.objects.get(pk=user_id)
+                    user.is_active = status
+                    user.save()
+
+                    serializer = self.serializer_class(user)
+                    return Response(serializer.data)
+          except Appointment.DoesNotExist:
+                    return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
 #list single user
 class SingleUser(generics.RetrieveAPIView):
       queryset = User.objects.select_related('profile')
@@ -53,6 +78,11 @@ class SingleUser(generics.RetrieveAPIView):
           instance = self.get_object()
           serializer = self.get_serializer(instance)
           return Response(serializer.data, status=status.HTTP_200_OK)
+      
+#list patients
+class ListPatients(generics.ListAPIView):
+     queryset = User.objects.select_related('profile').filter(is_patient=True)
+     serializer_class = UserProfileSerializer
 
 # Profile view
 
@@ -68,17 +98,26 @@ def Single_Profile(request, user_id):
           return Response(serializer.data, status=status.HTTP_200_OK)
      
 #edit profile
-class EditProfile(generics.UpdateAPIView):
-     queryset = Profile.objects.all()
-     serializer_class = ProfileSerializer
-     parser_classes = [MultiPartParser, FormParser] 
+class EditUserProfile(generics.UpdateAPIView):
+    queryset = Profile.objects.all()
+    serializer_class = ProfileSerializer
+    parser_classes = [MultiPartParser, FormParser] 
+    lookup_field = 'user_id'  
 
-     def update(self, request, *args, **kwargs):
-         instance = self.get_object()
-         serializer = self.serializer_class(instance, data=request.data)
-         serializer.is_valid(raise_exception=True)
-         serializer.save()
-         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    def update(self, request, *args, **kwargs):
+        user_id = kwargs.get('user_id')  # Extract user_id from the URL
+        try:
+            # Get the Profile instance for the specific user_id
+            instance = self.get_object()
+        except Profile.DoesNotExist:
+            return Response({"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Update the instance with the provided data
+        serializer = self.serializer_class(instance, data=request.data, partial=True)  
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST) 
      
 #Appointmet View
 

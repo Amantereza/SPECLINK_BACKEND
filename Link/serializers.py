@@ -4,12 +4,13 @@ from rest_framework import serializers
 from rest_framework_simplejwt.tokens import Token
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth.password_validation import validate_password
+from django.db import IntegrityError
 
 # create your serializers
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "email", "first_name", "last_name", "date_joined", "is_doctor", "is_patient", "is_staff"]
+        fields = ["id","username", "email", "first_name", "last_name", "date_joined", "is_doctor", "is_patient", "is_staff"]
 
 class obtainSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -19,43 +20,46 @@ class obtainSerializer(TokenObtainPairSerializer):
         token['is_patient'] = user.is_patient
         token['is_doctor'] = user.is_doctor
         token['username'] = user.username
+        token['first_name'] = user.first_name
+        token['last_name'] = user.last_name
         token['email'] = user.email 
 
         return token
 
 class RegisterSerializer(serializers.ModelSerializer):
-        password = serializers.CharField(
-             write_only=True, required = True, validators = [validate_password]
-        )
+    password = serializers.CharField(
+        write_only=True, required=True, validators=[validate_password]
+    )
 
-        confirm_password = serializers.CharField(
-             write_only=True, required = True, validators = [validate_password]
-        )
+    confirm_password = serializers.CharField(
+        write_only=True, required=True, validators=[validate_password]
+    )
 
-        class Meta:
-             model = User
-             fields = ['id', 'email', 'last_name', 'first_name', 'password','confirm_password', 'is_staff', 'is_doctor', 'is_patient']
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'last_name', 'first_name', 'password', 'confirm_password', 'is_staff', 'is_doctor', 'is_patient']
 
-        def validate(self, data):
-            if data['password'] != data['confirm_password']:
-                raise serializers.ValidationError({"password": "Password fields didn't match."})
-            return data
+    def validate(self, data):
+        if data['password'] != data['confirm_password']:
+            raise serializers.ValidationError({"password": "Password fields didn't match."})
+        return data
 
-        def create(self, validated_data):
+    def create(self, validated_data):
+        try:
             user = User.objects.create(
-                username = validated_data['email'],
-                 email = validated_data['email'],
-                 first_name = validated_data['first_name'],
-                 last_name = validated_data['last_name'],
-                 is_staff = validated_data.get('is_staff', False),
-                 is_doctor = validated_data.get('is_doctor', False),
-                 is_patient = validated_data.get('is_patient', False)
-             )
-            # validated_data.pop('confirm_password')
+                username=validated_data['email'],
+                email=validated_data['email'],
+                first_name=validated_data['first_name'],
+                last_name=validated_data['last_name'],
+                is_staff=validated_data.get('is_staff', False),
+                is_doctor=validated_data.get('is_doctor', False),
+                is_patient=validated_data.get('is_patient', False)
+            )
             user.set_password(validated_data['password'])
-            user.set_password(validated_data['confirm_password'])
             user.save()
-            return user 
+            return user
+        except IntegrityError:
+            raise serializers.ValidationError({"email": "A user with this email already exists."})
         
 #Profile serializer
 class ProfileSerializer(serializers.ModelSerializer):
@@ -67,7 +71,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
      profile = ProfileSerializer(read_only=True)
      class Meta:
           model = User
-          fields  = ["id", "email", "first_name","last_name", "username", "date_joined", "profile"]
+          fields  = ["id", "email", "first_name","last_name", "username", "date_joined", "is_active", "profile"]
 
 #appointment serializer
 class AppointmentSerializer(serializers.ModelSerializer):

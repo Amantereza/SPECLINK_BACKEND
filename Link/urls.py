@@ -10,13 +10,16 @@ urlpatterns = [
     path('update_user/<int:pk>', UpdateUser.as_view()),
     path('single_user/<int:pk>', SingleUser.as_view()),
     path('delete_user/<int:pk>', DeleteUser.as_view()),
+    path('list_doctors', ListDoctors.as_view()),
+    path('list_patients', ListPatients.as_view()),
+    path('active_user/<int:pk>', DeactivateUser.as_view()),
+    path('list_users', AllUsers.as_view()),
 
     #  profile views
     path('user_profile/<int:user_id>', Single_Profile),
-    path('EditProfile/<int:pk>', EditProfile.as_view()),
+    path('EditProfile/<int:user_id>', EditUserProfile.as_view()),
 
     #appointment views
-    path('list_doctors', ListDoctors.as_view()),
     path('post_appointements',  PostAppointments.as_view()),
     path('doctor_appointments/<int:doctor_id>', DoctorAppointments),
     path('change_appointment_status/<int:pk>', ChangeAppointmentStatus.as_view()),
