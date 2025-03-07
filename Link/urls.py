@@ -37,4 +37,8 @@ urlpatterns = [
     #Prescriptions views
     path('patient_prescriptions/<int:patient_id>', PatientPrescriptions),
     path('write_prescriptions', PostPrescriptions.as_view()),
+
+    #reports view
+    path('Daily_Appointment_trend/<int:doctor_id>', Daily_Appointment_trend),
+    path('Daily_Reports/<int:doctor_id>', Daily_Reports)
 ]

@@ -7,6 +7,8 @@ from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import *
 from django.db import transaction
+from django.db.models import Count, Q
+from django.utils import timezone
 from .serializers import *
 
 # Create your views here.
@@ -254,5 +256,97 @@ def PatientPrescriptions(request, patient_id):
           serializer = PrescriptionSerializer(user, many=True)
           return Response(serializer.data, status=status.HTTP_200_OK)
      
-     
+
+#Reports
+@api_view(['GET'])
+def Daily_Appointment_trend(request, doctor_id):
+    """
+    Get daily appointment trends for a specific doctor, starting from their date_joined.
+    Grouped by month and then by day.
+    """
+    try:
+        doctor = User.objects.get(id=doctor_id, is_doctor=True)
+    except User.DoesNotExist:
+        return Response({"error": "Doctor not found"}, status=404)
+
+    # Get the doctor's date_joined
+    date_joined = doctor.date_joined.date()
+
+    # Get today's date
+    today = timezone.now().date()
+
+    # Initialize the response structure
+    trends = []
+
+    # Loop through each month from date_joined to today
+    current_date = date_joined
+    while current_date <= today:
+        # Get the start and end of the current month
+        start_of_month = current_date.replace(day=1)
+        end_of_month = (start_of_month.replace(month=start_of_month.month + 1) - timezone.timedelta(days=1))
+
+        # Query appointments for the current month
+        appointments = Appointment.objects.filter(
+            doctor=doctor,
+            date__range=[start_of_month, end_of_month]
+        ).values('date').annotate(total_appointments=Count('id')).order_by('date')
+
+        # Format the daily trends for the current month
+        daily_trends = [
+            {
+                "date": appointment['date'].strftime('%Y-%m-%d'),
+                "total_appointments": appointment['total_appointments']
+            }
+            for appointment in appointments
+        ]
+
+        # Add the month and its daily trends to the response
+        trends.append({
+            "month": start_of_month.strftime('%B %Y'),
+            "daily_trends": daily_trends
+        })
+
+        # Move to the next month
+        current_date = end_of_month + timezone.timedelta(days=1)
+
+    return Response({
+        "doctor_id": doctor_id,
+        "date_joined": date_joined.strftime('%Y-%m-%d'),
+        "trends": trends
+    })
+
+
+@api_view(['GET'])
+def Daily_Reports(request, doctor_id):
+    """
+    Get daily reports for a specific doctor.
+    """
+    try:
+        doctor = User.objects.get(id=doctor_id, is_doctor=True)
+    except User.DoesNotExist:
+        return Response({"error": "Doctor not found"}, status=404)
+
+    # Get today's date
+    today = timezone.now().date()
+
+    # Query appointments for today
+    appointments = Appointment.objects.filter(doctor=doctor, date=today)
+
+    # Calculate totals
+    total_appointments = appointments.count()
+    total_patients = appointments.values('user').distinct().count()
+
+    # Count appointments by status
+    status_counts = appointments.values('status').annotate(count=Count('id'))
+
+    # Format the response
+    report = {
+        "doctor_id": doctor_id,
+        "date": today.strftime('%Y-%m-%d'),
+        "total_appointments": total_appointments,
+        "total_patients": total_patients,
+        "appointments_by_status": {item['status']: item['count'] for item in status_counts}
+    }
+
+    return Response(report)
           
