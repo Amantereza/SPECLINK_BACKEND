@@ -65,7 +65,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class ProfileSerializer(serializers.ModelSerializer):
      class Meta:
           model = Profile
-          fields = ["id", "profile_picture", "address", "date_of_birth", "specialization", "license_number","years_of_experience", "is_doctor", "is_patient", "is_staff"]
+          fields = ["id", "profile_picture", "address", "date_of_birth", "specialization", "years_of_experience", "is_doctor", "is_patient", "is_staff"]
 
 class UserProfileSerializer(serializers.ModelSerializer):
      profile = ProfileSerializer(read_only=True)
@@ -110,7 +110,6 @@ class MedicalRecordSerializer(serializers.ModelSerializer):
           model = MedicalRecord
           fields = "__all__"
 
-    
      def to_representation(self, instance):
         response = super().to_representation(instance)
         response['user'] = UserSerializer(instance.user).data

@@ -19,7 +19,7 @@ class Profile(models.Model):
     profile_picture = models.ImageField(upload_to='profile_pictures/', blank=True, null=True)
     address = models.CharField(max_length=255, blank=True, null=True)
     specialization = models.CharField(max_length=100, null=True, blank=True)
-    license_number = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    # license_number = models.CharField(max_length=50, unique=True, null=True, blank=True)
     years_of_experience = models.PositiveIntegerField(default=0, null=True, blank=True)
     date_of_birth = models.DateField(blank=True, null=True)
     date_joined = models.DateTimeField(auto_now_add=True)
