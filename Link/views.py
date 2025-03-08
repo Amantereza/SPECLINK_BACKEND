@@ -10,6 +10,8 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
 from django.db.models.functions import ExtractMonth, ExtractYear
+from datetime import timedelta, datetime
+from collections import defaultdict
 from .serializers import *
 
 # Create your views here.
@@ -344,11 +346,71 @@ def get_monthly_stats(self, doctor_id):
 #appointment trend            
 @api_view(['GET'])
 def Daily_Appointment_trend(request, doctor_id):
-    """
-    Get daily appointment trends for a specific doctor, starting from their date_joined.
-    Grouped by month and then by day.
-    """
+   
     try:
+        # Fetch the doctor
+        doctor = User.objects.get(id=doctor_id, is_doctor=True)
+    except User.DoesNotExist:
+        return Response({"error": "Doctor not found"}, status=404)
+
+    # Get the doctor's date_joined
+    user_joined_date = doctor.date_joined.date()
+
+    # Get today's date
+    today = timezone.now().date()
+
+    # Fetch appointments for the doctor from the date they joined until today
+    appointments = Appointment.objects.filter(
+        doctor=doctor,
+        created_at__date__range=[user_joined_date, today]  # Use `date__range` for date filtering
+    )
+
+    # Aggregate appointments by day
+    daily_trends = defaultdict(int)
+    for appointment in appointments:
+        appointment_date = appointment.created_at.date()  # Extract the date part
+        daily_trends[appointment_date] += 1
+
+    # Generate a list of all dates from the user's join date to today
+    all_dates = []
+    current_date = user_joined_date
+    while current_date <= today:
+        all_dates.append(current_date)
+        current_date += timedelta(days=1)
+
+    # Build the daily trends data, ensuring every day is included
+    trends_data = []
+    for date in all_dates:
+        trends_data.append({
+            "date": date.strftime("%Y-%m-%d"),
+            "count": daily_trends.get(date, 0)  # Default to 0 if no appointments on that day
+        })
+
+    # Group daily trends by month
+    monthly_trends = defaultdict(list)
+    for trend in trends_data:
+        month_key = datetime.strptime(trend["date"], "%Y-%m-%d").strftime("%B %Y")  # e.g., "March 2025"
+        monthly_trends[month_key].append(trend)
+
+    # Convert the monthly trends to a list of {month: month, daily_trends: daily_trends} objects
+    monthly_trends_data = [
+        {"month": month, "daily_trends": daily_trends}
+        for month, daily_trends in sorted(monthly_trends.items())
+    ]
+
+    return Response({
+        "doctor_id": doctor_id,
+        "date_joined": user_joined_date.strftime("%Y-%m-%d"),
+        "monthly_trends": monthly_trends_data
+    })
+
+
+# daily reports
+@api_view(['GET'])
+def Daily_Reports(request, doctor_id):
+   
+    try:
+        # Fetch the doctor
         doctor = User.objects.get(id=doctor_id, is_doctor=True)
     except User.DoesNotExist:
         return Response({"error": "Doctor not found"}, status=404)
@@ -360,75 +422,25 @@ def Daily_Appointment_trend(request, doctor_id):
     today = timezone.now().date()
 
     # Initialize the response structure
-    trends = []
+    daily_reports = []
 
-    # Loop through each month from date_joined to today
+    # Loop through each day from date_joined to today
     current_date = date_joined
     while current_date <= today:
-        # Get the start and end of the current month
-        start_of_month = current_date.replace(day=1)
-        end_of_month = (start_of_month.replace(month=start_of_month.month + 1) - timezone.timedelta(days=1))
-
-        # Query appointments for the current month
+        # Query appointments for the current day, grouped by status
         appointments = Appointment.objects.filter(
             doctor=doctor,
-            date__range=[start_of_month, end_of_month]
-        ).values('date').annotate(total_appointments=Count('id')).order_by('date')
+            created_at__date=current_date  # Use `created_at__date` for grouping
+        ).values('status').annotate(
+            total_appointments=Count('id'),
+            total_patients=Count('user', distinct=True)
+        )
 
-        # Format the daily trends for the current month
-        daily_trends = [
-            {
-                "date": appointment['date'].strftime('%Y-%m-%d'),
-                "total_appointments": appointment['total_appointments']
-            }
-            for appointment in appointments
-        ]
-
-        # Add the month and its daily trends to the response
-        trends.append({
-            "month": start_of_month.strftime('%B %Y'),
-            "daily_trends": daily_trends
-        })
-
-        # Move to the next month
-        current_date = end_of_month + timezone.timedelta(days=1)
-
-    return Response({
-        "doctor_id": doctor_id,
-        "date_joined": date_joined.strftime('%Y-%m-%d'),
-        "trends": trends
-    })
-
-
-# daily reports
-@api_view(['GET'])
-def Daily_Reports(request, doctor_id):
-    """
-    Get daily reports for a specific doctor for the last 7 days.
-    """
-    # Check if doctor exists
-    try:
-        doctor = User.objects.get(id=doctor_id, is_doctor=True)
-    except User.DoesNotExist:
-        return Response({"error": "Doctor not found"}, status=404)
-
-    # Define date range (last 7 days, including today)
-    end_date = timezone.now().date()
-    start_date = end_date - timezone.timedelta(days=6)  # 7 days total
-
-    # Query appointments for the date range in one go
-    appointments = Appointment.objects.filter(
-        doctor=doctor,
-        date__range=[start_date, end_date]
-    ).values('date', 'status', 'user').annotate(count=Count('id'))
-
-    # Initialize daily reports dictionary
-    daily_reports = {}
-    for single_date in (start_date + timezone.timedelta(days=n) for n in range(7)):
-        date_str = single_date.strftime('%Y-%m-%d')
-        daily_reports[date_str] = {
+        # Initialize the daily report
+        report = {
             "doctor_id": doctor_id,
-            "date": date_str,
+            "date": current_date.strftime('%Y-%m-%d'),  # Date in YYYY-MM-DD format
+            "current_month": current_date.strftime('%B %Y'),  # Current month in "Month YYYY" format
             "total_appointments": 0,
             "total_patients": 0,
             "appointments_by_status": {
@@ -438,24 +450,17 @@ def Daily_Reports(request, doctor_id):
             }
         }
 
-    # Aggregate data from appointments
-    for appt in appointments:
-        date_str = appt['date'].strftime('%Y-%m-%d')
-        report = daily_reports[date_str]
-        report["total_appointments"] += appt['count']
-        if appt['status'] in report["appointments_by_status"]:
-            report["appointments_by_status"][appt['status']] = appt['count']
+        # Update the report with data from appointments
+        for appt in appointments:
+            report["total_appointments"] += appt['total_appointments']
+            report["total_patients"] = appt['total_patients']
+            if appt['status'] in report["appointments_by_status"]:
+                report["appointments_by_status"][appt['status']] += appt['total_appointments']
 
-    # Calculate distinct patients per day
-    for single_date in daily_reports:
-        daily_reports[single_date]["total_patients"] = (
-            Appointment.objects.filter(doctor=doctor, date=single_date)
-            .values('user')
-            .distinct()
-            .count()
-        )
+        # Append the report to the list
+        daily_reports.append(report)
 
-    # Convert to list for response
-    daily_reports_list = list(daily_reports.values())
+        # Move to the next day
+        current_date += timedelta(days=1)
 
-    return Response(daily_reports_list, status=200)
+    return Response(daily_reports, status=200)
