@@ -40,5 +40,6 @@ urlpatterns = [
 
     #reports view
     path('Daily_Appointment_trend/<int:doctor_id>', Daily_Appointment_trend),
-    path('Daily_Reports/<int:doctor_id>', Daily_Reports)
+    path('Daily_Reports/<int:doctor_id>', Daily_Reports),
+    path('daily_monthly_stats/<int:doctor_id>', get_monthly_stats),
 ]

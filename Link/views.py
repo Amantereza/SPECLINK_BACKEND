@@ -9,6 +9,7 @@ from rest_framework.permissions import *
 from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
+from django.db.models.functions import ExtractMonth, ExtractYear
 from .serializers import *
 
 # Create your views here.
@@ -258,6 +259,89 @@ def PatientPrescriptions(request, patient_id):
      
 
 #Reports
+
+#monthly stats
+@api_view(['GET'])
+
+def get_monthly_stats(self, doctor_id):
+    try:
+        # Fetch the doctor's join date
+        doctor = User.objects.get(id=doctor_id)
+        join_date = doctor.date_joined
+        join_year = join_date.year
+        join_month = join_date.month
+
+        current_year = timezone.now().year
+        current_month = timezone.now().month
+
+        # Fetch appointments for the given doctor and annotate with year and month
+        appointments = Appointment.objects.filter(doctor__id=doctor_id).annotate(
+            month=ExtractMonth('created_at'),
+            year=ExtractYear('created_at')
+        ).filter(
+            Q(year=current_year, month__lte=current_month) | Q(year=current_year - 1)
+        )
+
+        # Initialize a dictionary to store monthly stats
+        monthly_data = {}
+        for appointment in appointments:
+            year = appointment.year
+            month = appointment.month
+            key = f"{year}-{month}"
+
+            if key not in monthly_data:
+                monthly_data[key] = {
+                    "year": year,
+                    "month": month,
+                    "total_appointments": 0,
+                    "total_patients": set(),  # Use a set to track unique patients
+                }
+
+            # Increment total appointments and add patient to the set
+            monthly_data[key]["total_appointments"] += 1
+            monthly_data[key]["total_patients"].add(appointment.user.id)
+
+        # Convert the set of patients to a count
+        for key in monthly_data:
+            monthly_data[key]["total_patients"] = len(monthly_data[key]["total_patients"])
+
+        # List of month names
+        month_names = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ]
+
+        # Prepare the final data
+        data = []
+        # Add data from the join month to the current month
+        for year in range(join_year, current_year + 1):
+            start_month = join_month if year == join_year else 1
+            end_month = current_month if year == current_year else 12
+
+            for month in range(start_month, end_month + 1):
+                key = f"{year}-{month}"
+                month_name = f"{month_names[month - 1]} {year}"  # Format: "March 2025"
+                if key in monthly_data:
+                    data.append({
+                        "month": month_name,  # Use month name instead of number
+                        "total_appointments": monthly_data[key]["total_appointments"],
+                        "total_patients": monthly_data[key]["total_patients"],
+                    })
+                else:
+                    data.append({
+                        "month": month_name,  # Use month name instead of number
+                        "total_appointments": 0,
+                        "total_patients": 0,
+                    })
+
+        # Sort the data by year and month
+        data.sort(key=lambda x: (x['month']))
+        return Response(data)
+
+    except Exception as e:
+        return {"error": str(e)}
+     
+#appointment trend            
 @api_view(['GET'])
 def Daily_Appointment_trend(request, doctor_id):
     """
@@ -316,37 +400,62 @@ def Daily_Appointment_trend(request, doctor_id):
     })
 
 
+# daily reports
 @api_view(['GET'])
 def Daily_Reports(request, doctor_id):
     """
-    Get daily reports for a specific doctor.
+    Get daily reports for a specific doctor for the last 7 days.
     """
+    # Check if doctor exists
     try:
         doctor = User.objects.get(id=doctor_id, is_doctor=True)
     except User.DoesNotExist:
         return Response({"error": "Doctor not found"}, status=404)
 
-    # Get today's date
-    today = timezone.now().date()
+    # Define date range (last 7 days, including today)
+    end_date = timezone.now().date()
+    start_date = end_date - timezone.timedelta(days=6)  # 7 days total
 
-    # Query appointments for today
-    appointments = Appointment.objects.filter(doctor=doctor, date=today)
+    # Query appointments for the date range in one go
+    appointments = Appointment.objects.filter(
+        doctor=doctor,
+        date__range=[start_date, end_date]
+    ).values('date', 'status', 'user').annotate(count=Count('id'))
 
-    # Calculate totals
-    total_appointments = appointments.count()
-    total_patients = appointments.values('user').distinct().count()
+    # Initialize daily reports dictionary
+    daily_reports = {}
+    for single_date in (start_date + timezone.timedelta(days=n) for n in range(7)):
+        date_str = single_date.strftime('%Y-%m-%d')
+        daily_reports[date_str] = {
+            "doctor_id": doctor_id,
+            "date": date_str,
+            "total_appointments": 0,
+            "total_patients": 0,
+            "appointments_by_status": {
+                "Cancelled": 0,
+                "Approved": 0,
+                "Pending": 0,
+            }
+        }
 
-    # Count appointments by status
-    status_counts = appointments.values('status').annotate(count=Count('id'))
+    # Aggregate data from appointments
+    for appt in appointments:
+        date_str = appt['date'].strftime('%Y-%m-%d')
+        report = daily_reports[date_str]
+        report["total_appointments"] += appt['count']
+        if appt['status'] in report["appointments_by_status"]:
+            report["appointments_by_status"][appt['status']] = appt['count']
 
-    # Format the response
-    report = {
-        "doctor_id": doctor_id,
-        "date": today.strftime('%Y-%m-%d'),
-        "total_appointments": total_appointments,
-        "total_patients": total_patients,
-        "appointments_by_status": {item['status']: item['count'] for item in status_counts}
-    }
+    # Calculate distinct patients per day
+    for single_date in daily_reports:
+        daily_reports[single_date]["total_patients"] = (
+            Appointment.objects.filter(doctor=doctor, date=single_date)
+            .values('user')
+            .distinct()
+            .count()
+        )
 
-    return Response(report)
-          
+    # Convert to list for response
+    daily_reports_list = list(daily_reports.values())
+
+    return Response(daily_reports_list, status=200)
