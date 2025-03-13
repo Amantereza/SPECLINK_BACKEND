@@ -126,7 +126,7 @@ class EditUserProfile(generics.UpdateAPIView):
 
 #list doctor profiles
 @api_view(['GET'])
-class ListDoctorProfiles(generics.ListAPIView):
+def ListDoctorProfiles(self):
     try:
           user = User.objects.select_related('profile').filter(is_doctor=True)
      except User.DoesNotExist:
