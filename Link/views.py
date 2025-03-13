@@ -125,9 +125,15 @@ class EditUserProfile(generics.UpdateAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST) 
 
 #list doctor profiles
+@api_view(['GET'])
 class ListDoctorProfiles(generics.ListAPIView):
-    queryset = Profile.objects.filter(is_doctor=True)
-    serializer_class = ProfileSerializer
+    try:
+          user = User.objects.select_related('profile').filter(is_doctor=True)
+     except User.DoesNotExist:
+          return Response(status=status.HTTP_404_NOT_FOUND)
+     if request.method == 'GET':
+          serializer = UserProfileSerializer(user)
+          return Response(serializer.data, status=status.HTTP_200_OK)
      
 #Appointmet View
 
