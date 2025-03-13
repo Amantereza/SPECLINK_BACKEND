@@ -126,12 +126,12 @@ class EditUserProfile(generics.UpdateAPIView):
 
 #list doctor profiles
 @api_view(['GET'])
-def ListDoctorProfiles(self):
+def ListDoctorProfiles(request):
     try:
           user = User.objects.select_related('profile').filter(is_doctor=True)
-     except User.DoesNotExist:
+    except User.DoesNotExist:
           return Response(status=status.HTTP_404_NOT_FOUND)
-     if request.method == 'GET':
+    if request.method == 'GET':
           serializer = UserProfileSerializer(user, many=True)
           return Response(serializer.data, status=status.HTTP_200_OK)
      

@@ -18,7 +18,7 @@ urlpatterns = [
     #  profile views
     path('user_profile/<int:user_id>', Single_Profile),
     path('EditProfile/<int:user_id>', EditUserProfile.as_view()),
-    path('list_doctor_profiles', ListDoctorProfiles.as_view()),
+    path('list_doctor_profiles', ListDoctorProfiles),
 
     #appointment views
     path('post_appointements',  PostAppointments.as_view()),
