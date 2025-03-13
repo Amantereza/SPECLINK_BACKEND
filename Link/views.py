@@ -132,7 +132,7 @@ def ListDoctorProfiles(self):
      except User.DoesNotExist:
           return Response(status=status.HTTP_404_NOT_FOUND)
      if request.method == 'GET':
-          serializer = UserProfileSerializer(user)
+          serializer = UserProfileSerializer(user, many=True)
           return Response(serializer.data, status=status.HTTP_200_OK)
      
 #Appointmet View
